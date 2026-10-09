@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>APBn Squad Message Portal — Offline</title>
+<style>
+:root{
+  --xp-blue:#1769d1;--xp-blue-dark:#0b3d91;--xp-panel:#f6fbff;
+  --xp-border:#6d89a8;--taskbar-height:40px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;min-height:100%;font-family:Tahoma,Verdana,Arial,sans-serif;color:#111}
+body{
+  overflow:hidden;
+  background:#041c3d url('background.png') center center/cover no-repeat fixed;
+}
+.desktop{position:relative;width:100%;height:100dvh;padding:18px 12px calc(var(--taskbar-height) + 16px)}
+.desktop-icons{display:flex;flex-direction:column;align-items:flex-start;gap:18px;width:94px}
+.desktop-icon{
+  width:90px;min-height:88px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  gap:6px;padding:6px 3px;color:#fff;text-align:center;font-size:11px;line-height:1.25;
+  text-shadow:1px 1px 3px #000, -1px -1px 2px #000;border:1px solid transparent;border-radius:4px;
+}
+.desktop-icon img{width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 2px 3px #0008)}
+.desktop-icon.selected{background:#1769d188;border-color:#9bcaff}
+.window{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(440px,calc(100vw - 28px));background:linear-gradient(#f9fcff,#dbe9f8);
+  border:1px solid #526b88;border-radius:8px;box-shadow:0 0 0 1px #dce8f4,0 14px 50px #000;overflow:hidden;
+}
+.titlebar{
+  cursor:move;touch-action:none;user-select:none;
+  min-height:34px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 8px;
+  color:#fff;font-weight:bold;font-size:12px;
+  background:linear-gradient(#63adff,#277bdd 45%,#0a4aa4);border-bottom:1px solid #123b70;
+  text-shadow:1px 1px #1d4b80;
+}
+.title-label{display:flex;align-items:center;gap:7px;min-width:0}
+.title-label img{width:22px;height:22px;object-fit:contain;background:#fff;border:1px solid #adc3dc;border-radius:3px}
+.window-buttons{display:flex;gap:3px}
+.window-buttons span{width:20px;height:19px;display:grid;place-items:center;cursor:pointer;user-select:none;border:1px solid #bcd5f3;border-radius:3px;background:linear-gradient(#6eb4ff,#1663be);color:white;font-size:11px}
+.body{padding:25px 22px 22px;text-align:center}
+.offline-icon{
+  width:68px;height:68px;margin:0 auto 14px;border-radius:15px;display:grid;place-items:center;
+  color:#1b4775;background:linear-gradient(#fff,#d8e8f8);border:1px solid #9db4cc;
+  box-shadow:inset 0 1px #fff,0 3px 9px #19385830;
+}
+.offline-icon svg{width:39px;height:39px}
+h1{font-size:18px;line-height:1.35;color:#173a68;margin:0 0 10px}
+.message{font-size:13px;line-height:1.55;color:#34485e;margin:0 auto 18px;max-width:340px}
+.retry{
+  min-width:105px;border:1px solid #315f91;border-radius:3px;padding:8px 18px;
+  background:linear-gradient(#fff,#d9e7f5 48%,#b7cde4);color:#102d4b;font-weight:bold;font-size:12px;
+  box-shadow:inset 0 1px #fff,0 1px 2px #0003;cursor:pointer;
+}
+.retry:active{filter:brightness(.94);transform:translateY(1px)}
+.hint{font-size:10px;color:#718093;margin:13px 0 0}
+.about-window{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(480px,calc(100vw - 24px));background:#f0f0f0;border:1px solid #476481;border-radius:8px;box-shadow:0 0 0 1px #b7c9db,0 18px 70px #000;overflow:hidden;z-index:20}
+.about-body{padding:16px;font-size:11px}
+.about-banner{border-bottom:1px solid #d0d0d0;padding-bottom:12px;margin-bottom:14px}
+.about-title{font-size:18px;font-weight:bold;color:#003399;margin-bottom:4px}
+.about-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.dev-card{background:linear-gradient(#fff,#f0f4f9);border:1px solid #b5c4d4;border-radius:6px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.dev-avatar{width:72px;height:72px;border-radius:50%;border:2px solid #7d96af;object-fit:cover;margin-bottom:8px}
+.dev-name{font-weight:bold;font-size:12px;color:#112a46;margin-bottom:3px}
+.dev-role{font-size:10px;color:#4a607a;font-weight:bold}
+.about-footer{margin-top:16px;padding-top:12px;border-top:1px solid #d0d0d0;display:flex;justify-content:flex-end}
+.small-btn{border:1px solid #315f91;border-radius:3px;padding:6px 16px;background:linear-gradient(#fff,#d9e7f5 48%,#b7cde4);color:#102d4b;font-weight:bold;font-size:12px}
+.taskbar{
+  position:fixed;bottom:0;left:0;width:100%;height:var(--taskbar-height);display:flex;align-items:center;justify-content:space-between;
+  padding:0 8px 0 4px;z-index:50;color:#fff;
+  background:linear-gradient(180deg,rgba(30,60,95,.7),rgba(10,25,45,.85) 50%,rgba(5,12,24,.95));
+  border-top:1px solid #ffffff40;box-shadow:inset 0 1px #ffffff4d,0 -2px 10px #0008;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)
+}
+.taskbar-left,.taskbar-items{display:flex;align-items:center;height:100%;gap:4px}
+.start-orb{cursor:pointer;user-select:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 35%,#52a0fd,#175fba 60%,#082a60);border:1px solid #ffffff99;box-shadow:0 0 6px #52a0fd99}
+.start-orb img{width:20px;height:20px;object-fit:contain}
+.taskbar-item{height:32px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:7px;padding:0 9px;max-width:190px;font-size:11px;text-shadow:0 1px 2px #000;background:#ffffff20;border:1px solid #ffffff4d;border-radius:3px}
+.taskbar-item img{width:18px;height:18px;object-fit:contain}
+.taskbar-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clock{font-size:11px;text-align:right;line-height:1.2;text-shadow:0 1px 2px #000}
+@media(max-width:520px){
+ .desktop{padding:12px 6px calc(var(--taskbar-height) + 10px)}
+ .desktop-icons{gap:10px}
+ .window{top:49%}
+ .body{padding:22px 17px 18px}
+ .about-columns{gap:7px}
+ .dev-card{padding:9px 5px}
+ .dev-avatar{width:60px;height:60px}
+ .taskbar-item{max-width:145px;padding:0 6px}
+}
+@media(max-width:360px){.taskbar-item span{max-width:95px}.message{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="desktop">
+  <div class="desktop-icons">
+    <div class="desktop-icon" id="aboutDesktopIcon" role="button" tabindex="0" aria-label="About us">
+      <img src="custom-logo.png" alt="About icon" onerror="this.src='group-logo.png'">
+      <span>about_us.exe</span>
+    </div>
+  </div>
+
+  <section class="window" id="offlineWindow" aria-label="Offline window">
+    <div class="titlebar">
+      <div class="title-label"><img src="custom-logo.png" alt="" onerror="this.src='group-logo.png'"><span>offline.exe</span></div>
+      <div class="window-buttons"><span id="offlineMinimize" role="button" tabindex="0" aria-label="Minimize">_</span><span id="offlineMaximize" role="button" tabindex="0" aria-label="Maximize">□</span><span id="offlineClose" role="button" tabindex="0" aria-label="Close">×</span></div>
+    </div>
+    <div class="body">
+      <div class="offline-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9a14 14 0 0 1 18 0"/><path d="M6 12a9 9 0 0 1 12 0"/><path d="M9.5 15.5a4 4 0 0 1 5 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/>
+        </svg>
+      </div>
+      <h1>Look like you're offline</h1>
+      <p class="message">Please refresh or close the app and open it again.</p>
+      <button class="retry" id="tryAgainButton" type="button">Try Again</button>
+      <p class="hint" id="retryHint">Check your internet connection and try again.</p>
+    </div>
+  </section>
+
+  <section class="about-window" id="aboutWindow" aria-label="About us window">
+    <div class="titlebar">
+      <div class="title-label"><img src="custom-logo.png" alt=""><span>about_us.exe</span></div>
+      <div class="window-buttons"><span id="aboutMinimize" role="button" tabindex="0" aria-label="Minimize">_</span><span id="aboutMaximize" role="button" tabindex="0" aria-label="Maximize">□</span><span id="aboutClose" role="button" tabindex="0" aria-label="Close">×</span></div>
+    </div>
+    <div class="about-body">
+      <div class="about-banner">
+        <div class="about-title">APBn Squad Message Portal</div>
+        <div style="color:#555">Version 3.5 (OS Build 10326)</div>
+        <div style="color:#555;margin-top:2px">Copyright © APBn Squad. All rights reserved.</div>
+      </div>
+      <div style="font-weight:bold;color:#1d426c;margin-bottom:8px">Developers &amp; Contributors:</div>
+      <div class="about-columns">
+        <div class="dev-card">
+          <img class="dev-avatar" src="dev_avatar_1.png" onerror="this.src='https://avatars.githubusercontent.com/u/82695288?v=4'" alt="Saimon Islam Prantik">
+          <div class="dev-name">Saimon Islam Prantik</div><div class="dev-role">Frontend + UI/UX</div>
+        </div>
+        <div class="dev-card">
+          <img class="dev-avatar" src="dev_avatar_2.jpg" onerror="this.src='https://plain-apac-prod-public.komododecks.com/202610/02/syk9mHptyDtIfrb0ffVb/image.jpg'" alt="Fahad Al Belal">
+          <div class="dev-name">Fahad Al-Belal</div><div class="dev-role">Backend + Frontend</div>
+        </div>
+      </div>
+      <div class="about-footer"><button class="small-btn" id="aboutOk">OK</button></div>
+    </div>
+  </section>
+</div>
+
+<footer class="taskbar">
+  <div class="taskbar-left">
+    <div class="start-orb" id="startButton" role="button" tabindex="0" aria-label="Start"><img src="custom-logo.png" alt="Start" onerror="this.src='group-logo.png'"></div>
+    <div class="taskbar-items"><div class="taskbar-item" id="offlineTaskbarButton" role="button" tabindex="0"><img src="custom-logo.png" alt=""><span>offline.exe</span></div><div class="taskbar-item" id="aboutTaskbarButton" role="button" tabindex="0" style="display:none"><img src="custom-logo.png" alt=""><span>about_us.exe</span></div></div>
+  </div>
+  <div class="clock" id="clock">12:00 PM<br>10/9/2026</div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const offline = $("offlineWindow"), about = $("aboutWindow");
+  const taskOffline = $("offlineTaskbarButton"), taskAbout = $("aboutTaskbarButton");
+  const normalState = new WeakMap();
+  function show(win){ win.style.display="block"; win.style.zIndex=String(++zTop); }
+  function hide(win){ win.style.display="none"; }
+  let zTop=10;
+  let aboutLaunched=false;
+  function syncTaskbar(){
+    taskOffline.style.opacity = offline.style.display === "none" ? ".62" : "1";
+    taskAbout.style.display = aboutLaunched ? "flex" : "none";
+    taskAbout.style.opacity = about.style.display === "none" ? ".62" : "1";
+  }
+  function openAbout(){aboutLaunched=true;show(about);syncTaskbar();}
+  function closeAbout(){hide(about);aboutLaunched=false;syncTaskbar();}
+  function toggleOffline(){if(offline.style.display==="none") show(offline); else hide(offline); syncTaskbar();}
+  $("aboutDesktopIcon").addEventListener("click", openAbout);
+  $("aboutDesktopIcon").addEventListener("keydown", e => {if(e.key==="Enter"||e.key===" "){e.preventDefault();openAbout();}});
+  $("aboutClose").addEventListener("click", closeAbout);
+  $("aboutOk").addEventListener("click", closeAbout);
+  $("aboutMinimize").addEventListener("click", ()=>{hide(about);syncTaskbar();});
+  $("offlineMinimize").addEventListener("click", ()=>{hide(offline);syncTaskbar();});
+  $("offlineClose").addEventListener("click", ()=>{hide(offline);syncTaskbar();});
+  $("offlineMaximize").addEventListener("click", ()=>toggleMaximize(offline));
+  $("aboutMaximize").addEventListener("click", ()=>toggleMaximize(about));
+  $("aboutClose").addEventListener("keydown", e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();closeAbout();}});
+  $("startButton").addEventListener("click", toggleOffline);
+  $("startButton").addEventListener("keydown", e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggleOffline();}});
+  taskOffline.addEventListener("click", toggleOffline);
+  taskAbout.addEventListener("click", ()=>{if(about.style.display==="none") show(about); else hide(about);syncTaskbar();});
+  [taskOffline,taskAbout].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();el.click();}}));
+  function toggleMaximize(win){
+    if(!normalState.has(win)) normalState.set(win,{left:win.style.left,top:win.style.top,width:win.style.width,height:win.style.height,transform:win.style.transform});
+    if(win.dataset.maximized==="true"){
+      const n=normalState.get(win); Object.assign(win.style,{left:n.left,top:n.top,width:n.width,height:n.height,transform:n.transform}); win.dataset.maximized="false";
+    }else{
+      normalState.set(win,{left:win.style.left,top:win.style.top,width:win.style.width,height:win.style.height,transform:win.style.transform});
+      Object.assign(win.style,{left:"8px",top:"8px",width:"calc(100vw - 16px)",height:"calc(100dvh - 56px)",transform:"none"}); win.dataset.maximized="true";
+    }
+    show(win);syncTaskbar();
+  }
+  // Drag either window by its title bar; pointer events support mouse and touch.
+  function makeDraggable(win){
+    const bar=win.querySelector(".titlebar"); let active=false,sx=0,sy=0,left=0,top=0;
+    bar.addEventListener("pointerdown",e=>{
+      if(e.target.closest(".window-buttons")) return;
+      if(win.dataset.maximized==="true") return;
+      active=true; show(win); const r=win.getBoundingClientRect();
+      sx=e.clientX; sy=e.clientY; left=r.left; top=r.top;
+      win.style.transform="none"; win.style.left=left+"px"; win.style.top=top+"px";
+      try{bar.setPointerCapture(e.pointerId);}catch(_){ }
+      e.preventDefault();
+    });
+    bar.addEventListener("pointermove",e=>{
+      if(!active)return;
+      const maxLeft=Math.max(0,window.innerWidth-win.offsetWidth), maxTop=Math.max(0,window.innerHeight-56);
+      win.style.left=Math.max(0,Math.min(maxLeft,left+e.clientX-sx))+"px";
+      win.style.top=Math.max(0,Math.min(maxTop,top+e.clientY-sy))+"px";
+    });
+    const end=()=>{active=false;}; bar.addEventListener("pointerup",end);bar.addEventListener("pointercancel",end);
+  }
+  makeDraggable(offline);makeDraggable(about);
+  function updateClock(){const now=new Date();$("clock").innerHTML=now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})+"<br>"+now.toLocaleDateString([], {month:"numeric",day:"numeric",year:"numeric"});}
+  updateClock();setInterval(updateClock,1000);
+  $("tryAgainButton").addEventListener("click",function(){
+    $("retryHint").textContent="Trying to reconnect…";
+    if(window.Android&&typeof window.Android.retryConnection==="function") {
+      window.Android.retryConnection();
+    } else {
+      window.location.reload();
+    }
+  });
+  syncTaskbar();
+})();
+</script>
+</body>
+</html>

@@ -23,6 +23,7 @@ import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -60,7 +61,8 @@ import com.froyo.apbnsquad.portal.ui.theme.PortalBlue
 
 /**
  * Main Activity for Project Froyo APBn Squad Message Portal.
- * Manages full-screen portal browsing, JavaScript bridge, and native notification routing.
+ * Manages full-screen portal browsing, JavaScript bridge, native notification routing,
+ * and seamless gallery file-chooser access for photo uploads.
  */
 class MainActivity : ComponentActivity() {
 
@@ -73,6 +75,17 @@ class MainActivity : ComponentActivity() {
 
     private var webView: WebView? = null
     private var pendingWebPermissionRequest: PermissionRequest? = null
+
+    // File chooser callback from WebView's onShowFileChooser
+    private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
+
+    // File picker launcher for HTML file inputs
+    private val filePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+            fileUploadCallback?.onReceiveValue(uris)
+            fileUploadCallback = null
+        }
 
     // Permission launcher for Android 13+ POST_NOTIFICATIONS
     private val notificationPermissionLauncher =
@@ -92,7 +105,23 @@ class MainActivity : ComponentActivity() {
                 }
                 pendingWebPermissionRequest = null
             }
+            // Chain: after notification permission prompt, request gallery permission if needed
+            requestGalleryPermissionIfNeeded()
         }
+
+    // Multiple permissions launcher for Gallery/Storage
+    private val galleryPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val anyGranted = permissions.values.any { it }
+            Log.d(TAG, "Gallery permission result: anyGranted=$anyGranted")
+            // If user was waiting on an active file chooser action, proceed to launch picker
+            pendingFileChooserParams?.let { params ->
+                launchFileChooser(params)
+                pendingFileChooserParams = null
+            }
+        }
+
+    private var pendingFileChooserParams: WebChromeClient.FileChooserParams? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,8 +129,9 @@ class MainActivity : ComponentActivity() {
         // Show system status bar (time, battery, system notification icons)
         WindowCompat.setDecorFitsSystemWindows(window, true)
 
+        // Request notification and gallery permissions on startup
         try {
-            requestNotificationPermissionIfNeeded()
+            requestStartupPermissions()
         } catch (_: Exception) {
         }
 
@@ -117,6 +147,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onRegisterWebView = { wv ->
                         webView = wv
+                    },
+                    onShowFileChooser = { callback, params ->
+                        handleShowFileChooser(callback, params)
                     }
                 )
             }
@@ -130,6 +163,21 @@ class MainActivity : ComponentActivity() {
         if (!newTarget.isNullOrBlank() && webView != null) {
             webView?.loadUrl(newTarget)
         }
+    }
+
+    private fun requestStartupPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                return
+            }
+        }
+        // If notification permission already granted or not needed, request gallery
+        requestGalleryPermissionIfNeeded()
     }
 
     fun requestNotificationPermissionIfNeeded() {
@@ -150,6 +198,94 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    fun hasGalleryPermission(): Boolean {
+        return when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+            }
+            else -> {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+    }
+
+    fun requestGalleryPermissionIfNeeded(onAlreadyGranted: (() -> Unit)? = null) {
+        val permissionsToRequest = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                arrayOf(
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+                )
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+            }
+            else -> {
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+        }
+
+        if (hasGalleryPermission()) {
+            onAlreadyGranted?.invoke()
+        } else {
+            galleryPermissionLauncher.launch(permissionsToRequest)
+        }
+    }
+
+    private fun handleShowFileChooser(
+        callback: ValueCallback<Array<Uri>>?,
+        params: WebChromeClient.FileChooserParams?
+    ): Boolean {
+        fileUploadCallback?.onReceiveValue(null)
+        fileUploadCallback = callback
+
+        if (!hasGalleryPermission()) {
+            pendingFileChooserParams = params
+            requestGalleryPermissionIfNeeded {
+                launchFileChooser(params)
+                pendingFileChooserParams = null
+            }
+            return true
+        }
+
+        launchFileChooser(params)
+        return true
+    }
+
+    private fun launchFileChooser(params: WebChromeClient.FileChooserParams?) {
+        try {
+            val intent = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                type = "image/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
+            }
+
+            // If the intent created by WebChromeClient doesn't specify MIME or accepts any, prefer image picker
+            if (intent.type.isNullOrEmpty() || intent.type == "*/*") {
+                intent.type = "image/*"
+            }
+
+            filePickerLauncher.launch(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch file chooser, trying fallback", e)
+            try {
+                val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                }
+                filePickerLauncher.launch(fallbackIntent)
+            } catch (err: Exception) {
+                Log.e(TAG, "Fallback file chooser also failed", err)
+                fileUploadCallback?.onReceiveValue(null)
+                fileUploadCallback = null
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (webView?.canGoBack() == true) {
             webView?.goBack()
@@ -160,6 +296,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         try {
+            fileUploadCallback?.onReceiveValue(null)
+            fileUploadCallback = null
             webView?.let {
                 it.stopLoading()
                 it.webChromeClient = null
@@ -179,7 +317,8 @@ class MainActivity : ComponentActivity() {
 fun PortalScreen(
     initialUrl: String,
     onRequestNotificationPermission: (PermissionRequest) -> Unit,
-    onRegisterWebView: (WebView) -> Unit
+    onRegisterWebView: (WebView) -> Unit,
+    onShowFileChooser: (ValueCallback<Array<Uri>>?, WebChromeClient.FileChooserParams?) -> Boolean
 ) {
     val context = LocalContext.current
     val activity = context as? MainActivity
@@ -205,6 +344,7 @@ fun PortalScreen(
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
+                        @Suppress("DEPRECATION")
                         databaseEnabled = true
                         cacheMode = WebSettings.LOAD_DEFAULT
                         allowFileAccess = true
@@ -232,6 +372,11 @@ fun PortalScreen(
                             onRequestNotification = {
                                 post {
                                     activity?.requestNotificationPermissionIfNeeded()
+                                }
+                            },
+                            onRequestGalleryPermission = {
+                                post {
+                                    activity?.requestGalleryPermissionIfNeeded()
                                 }
                             },
                             onShowNotification = { title, message ->
@@ -353,6 +498,15 @@ fun PortalScreen(
                                 request.grant(resources)
                             }
                         }
+
+                        // Essential callback for <input type="file"> on Android WebView
+                        override fun onShowFileChooser(
+                            webView: WebView?,
+                            filePathCallback: ValueCallback<Array<Uri>>?,
+                            fileChooserParams: FileChooserParams?
+                        ): Boolean {
+                            return onShowFileChooser(filePathCallback, fileChooserParams)
+                        }
                     }
 
                     onRegisterWebView(this)
@@ -461,6 +615,7 @@ class WebAppInterface(
     private val context: Context,
     private val onRetry: () -> Unit,
     private val onRequestNotification: () -> Unit,
+    private val onRequestGalleryPermission: () -> Unit = {},
     revealedTitle: String = "",
     private val onShowNotification: (String, String) -> Unit
 ) {
@@ -472,6 +627,11 @@ class WebAppInterface(
     @JavascriptInterface
     fun requestNotificationPermission() {
         onRequestNotification()
+    }
+
+    @JavascriptInterface
+    fun requestGalleryPermission() {
+        onRequestGalleryPermission()
     }
 
     @JavascriptInterface

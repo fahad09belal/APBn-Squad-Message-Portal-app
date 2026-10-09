@@ -12,7 +12,7 @@
 
 Project Froyo: APBn Squad Message Portal is an Android client crafted by Fahad Al-Belal for dedicated, fast access to the squad messaging network.
 
-Designed following the retro desktop aesthetics of the APBn Squad and PhalqonOS ecosystem, this client integrates real-time web socket messaging with Android native system notifications and offline reliability.
+Designed following the retro desktop aesthetics of the APBn Squad and Future reMSN sandbox ecosystem, this client integrates real-time web socket messaging with Android native system notifications and offline reliability.
 
 ### Key Features
 - **Dedicated Fullscreen Portal:** Seamless WebView optimized for APBn Squad with custom styling, high responsiveness, and zero distraction bars.
